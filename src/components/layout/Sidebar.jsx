@@ -1,12 +1,14 @@
-import React from "react";
+import db from "@/api/databaseClient";
+
+import React, { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Wrench, 
-  Users, 
-  DollarSign, 
-  BarChart3, 
-  ChevronLeft, 
+import {
+  LayoutDashboard,
+  Wrench,
+  Users,
+  DollarSign,
+  BarChart3,
+  ChevronLeft,
   ChevronRight,
   Smartphone,
   FileText,
@@ -25,6 +27,43 @@ const navItems = [
 
 export default function Sidebar({ collapsed, onToggle }) {
   const location = useLocation();
+  const [store, setStore] = useState({ store_name: "Gotelip Assistência", logo_url: "" });
+
+  useEffect(() => {
+    let active = true;
+
+    const loadStore = async () => {
+      try {
+        const settings = await db.entities.Setting.list("-created_date", 1);
+        if (active && settings[0]) {
+          setStore({
+            store_name: settings[0].store_name || "Gotelip Assistência",
+            logo_url: settings[0].logo_url || "",
+          });
+        }
+      } catch {
+        // Keep the default branding if settings are unavailable.
+      }
+    };
+
+    const handleSettingsUpdated = (event) => {
+      const next = event.detail || {};
+      setStore((current) => ({
+        store_name: next.store_name || current.store_name,
+        logo_url: next.logo_url ?? current.logo_url,
+      }));
+    };
+
+    loadStore();
+    window.addEventListener("settings-updated", handleSettingsUpdated);
+    return () => {
+      active = false;
+      window.removeEventListener("settings-updated", handleSettingsUpdated);
+    };
+  }, []);
+
+  const [brandTitle, ...brandRest] = store.store_name.trim().split(/\s+/);
+  const brandSubtitle = brandRest.join(" ") || "Assistência";
 
   return (
     <aside
@@ -32,23 +71,25 @@ export default function Sidebar({ collapsed, onToggle }) {
         collapsed ? "w-[72px]" : "w-[240px]"
       }`}
     >
-      {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border shrink-0">
-        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0">
-          <Smartphone className="w-5 h-5 text-primary-foreground" />
+        <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shrink-0 overflow-hidden">
+          {store.logo_url ? (
+            <img src={store.logo_url} alt="Logo da loja" className="w-full h-full object-contain bg-white" />
+          ) : (
+            <Smartphone className="w-5 h-5 text-primary-foreground" />
+          )}
         </div>
         {!collapsed && (
           <div className="overflow-hidden">
-            <h1 className="text-sm font-bold tracking-tight text-white truncate">Gotelip</h1>
-            <p className="text-[10px] text-sidebar-foreground/60 truncate">Assistência</p>
+            <h1 className="text-sm font-bold tracking-tight text-white truncate">{brandTitle}</h1>
+            <p className="text-[10px] text-sidebar-foreground/60 truncate">{brandSubtitle}</p>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          const isActive = location.pathname === item.path || 
+          const isActive = location.pathname === item.path ||
             (item.path !== "/" && location.pathname.startsWith(item.path));
           const Icon = item.icon;
 
@@ -70,7 +111,6 @@ export default function Sidebar({ collapsed, onToggle }) {
         })}
       </nav>
 
-      {/* Collapse Toggle */}
       <div className="px-3 py-4 border-t border-sidebar-border shrink-0">
         <button
           onClick={onToggle}

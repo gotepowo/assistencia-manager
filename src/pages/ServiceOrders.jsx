@@ -13,6 +13,7 @@ import NotifyClientDialog from "@/components/orders/NotifyClientDialog";
 import OSDocumentDialog from "@/components/orders/OSDocumentDialog";
 import ReceiptDialog from "@/components/orders/ReceiptDialog";
 import InvoiceFormDialog from "@/components/invoices/InvoiceFormDialog";
+import AttachInvoiceDialog from "@/components/invoices/AttachInvoiceDialog";
 import { exportToCSV } from "@/utils/exportCSV";
 import ImportCSVButton from "@/components/shared/ImportCSVButton";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,8 @@ export default function ServiceOrders() {
   const [receiptOrder, setReceiptOrder] = useState(null);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [invoicePrefillOrder, setInvoicePrefillOrder] = useState(null);
+  const [attachInvoiceOpen, setAttachInvoiceOpen] = useState(false);
+  const [attachInvoiceOrder, setAttachInvoiceOrder] = useState(null);
 
   useEffect(() => {
     const statusParam = searchParams.get("status");
@@ -261,7 +264,7 @@ export default function ServiceOrders() {
                             <Receipt className="w-4 h-4" />
                           </button>
                         )}
-                        <button onClick={() => { setInvoicePrefillOrder(order); setInvoiceOpen(true); }} disabled={updatingId === order.id} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 transition-colors disabled:opacity-40" title="Anexar nota fiscal">
+                        <button onClick={() => { setAttachInvoiceOrder(order); setAttachInvoiceOpen(true); }} disabled={updatingId === order.id} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600 transition-colors disabled:opacity-40" title="Anexar nota fiscal">
                           <Paperclip className="w-4 h-4" />
                         </button>
                         {order.status === "Pronto" && (
@@ -300,6 +303,19 @@ export default function ServiceOrders() {
       <OSDocumentDialog open={osDocOpen} onOpenChange={setOsDocOpen} order={osDocOrder} onSaved={loadData} onDelete={loadData} />
       <ReceiptDialog open={receiptOpen} onOpenChange={setReceiptOpen} order={receiptOrder} />
       <InvoiceFormDialog open={invoiceOpen} onOpenChange={(v) => { setInvoiceOpen(v); if (!v) setInvoicePrefillOrder(null); }} invoice={null} orders={orders} prefillOrder={invoicePrefillOrder} onSaved={loadData} />
+      <AttachInvoiceDialog
+        open={attachInvoiceOpen}
+        onOpenChange={(value) => {
+          setAttachInvoiceOpen(value);
+          if (!value) setAttachInvoiceOrder(null);
+        }}
+        order={attachInvoiceOrder}
+        onAttached={loadData}
+        onCreateNew={(order) => {
+          setInvoicePrefillOrder(order);
+          setInvoiceOpen(true);
+        }}
+      />
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

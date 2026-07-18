@@ -10,6 +10,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Save, Store, Loader2, Upload } from "lucide-react";
 
+const formatCnpj = (value) => value.replace(/\D/g, "").slice(0, 14)
+  .replace(/^(\d{2})(\d)/, "$1.$2")
+  .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+  .replace(/\.(\d{3})(\d)/, ".$1/$2")
+  .replace(/(\d{4})(\d)/, "$1-$2");
+
+const formatPhone = (value) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 10) {
+    return digits
+      .replace(/^(\d{2})(\d)/, "($1) $2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2");
+};
+
 export default function Settings() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -38,8 +56,8 @@ export default function Settings() {
         setForm({
           store_name: s.store_name || "",
           address: s.address || "",
-          cnpj: s.cnpj || "",
-          phone: s.phone || "",
+          cnpj: formatCnpj(s.cnpj || ""),
+          phone: formatPhone(s.phone || ""),
           email: s.email || "",
           logo_url: s.logo_url || "",
         });
@@ -82,6 +100,7 @@ export default function Settings() {
         const created = await db.entities.Setting.create(form);
         setSettingId(created.id);
       }
+      window.dispatchEvent(new CustomEvent("settings-updated", { detail: form }));
       toast({ title: "Configurações salvas!" });
     } catch {
       toast({ title: "Erro ao salvar configurações", variant: "destructive" });
@@ -118,11 +137,11 @@ export default function Settings() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>CNPJ</Label>
-              <Input value={form.cnpj} onChange={e => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0000-00" />
+              <Input value={form.cnpj} onChange={e => setForm({ ...form, cnpj: formatCnpj(e.target.value) })} placeholder="00.000.000/0000-00" inputMode="numeric" />
             </div>
             <div>
               <Label>Telefone</Label>
-              <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="(00) 0000-0000" />
+              <Input value={form.phone} onChange={e => setForm({ ...form, phone: formatPhone(e.target.value) })} placeholder="(00) 00000-0000" inputMode="tel" />
             </div>
           </div>
 

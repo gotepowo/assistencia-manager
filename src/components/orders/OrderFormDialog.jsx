@@ -1,6 +1,6 @@
 import db from "@/api/databaseClient";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,10 @@ export default function OrderFormDialog({ open, onOpenChange, order, clients, on
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState("idle");
+  const hydratedRef = useRef(false);
+  const autosaveTimerRef = useRef(null);
+  const latestFormRef = useRef(null);
 
   const [form, setForm] = useState({
     client_id: "", client_name: "", client_phone: "",
@@ -29,6 +33,10 @@ export default function OrderFormDialog({ open, onOpenChange, order, clients, on
   });
 
   useEffect(() => {
+    hydratedRef.current = false;
+    setAutosaveStatus("idle");
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+
     if (order) {
       setForm({
         client_id: order.client_id || "",
@@ -57,9 +65,78 @@ export default function OrderFormDialog({ open, onOpenChange, order, clients, on
       });
       setSearch("");
     }
+
+    requestAnimationFrame(() => {
+      hydratedRef.current = true;
+    });
   }, [order, open]);
 
   const profit = (parseFloat(form.amount_received) || 0) - (parseFloat(form.amount_spent) || 0) - (parseFloat(form.fee_amount) || 0);
+
+  const buildOrderData = (sourceForm) => {
+    const data = {
+      ...sourceForm,
+      amount_received: parseFloat(sourceForm.amount_received) || 0,
+      amount_spent: parseFloat(sourceForm.amount_spent) || 0,
+      fee_amount: parseFloat(sourceForm.fee_amount) || 0,
+    };
+    data.profit = data.amount_received - data.amount_spent - data.fee_amount;
+
+    if (data.status === "Entregue" && !data.delivered_date) {
+      data.delivered_date = moment().format("YYYY-MM-DD");
+    }
+
+    return data;
+  };
+
+  latestFormRef.current = form;
+
+  useEffect(() => {
+    if (!open || !order?.id || !hydratedRef.current) return;
+
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setAutosaveStatus("pending");
+
+    autosaveTimerRef.current = setTimeout(async () => {
+      setAutosaveStatus("saving");
+      try {
+        await db.entities.ServiceOrder.update(order.id, buildOrderData(latestFormRef.current));
+        setAutosaveStatus("saved");
+      } catch {
+        setAutosaveStatus("error");
+      }
+    }, 900);
+
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+  }, [form, open, order?.id]);
+
+  const flushAutosave = async () => {
+    if (!order?.id || !hydratedRef.current) return;
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setAutosaveStatus("saving");
+    try {
+      await db.entities.ServiceOrder.update(order.id, buildOrderData(latestFormRef.current));
+      setAutosaveStatus("saved");
+      onSaved();
+    } catch {
+      setAutosaveStatus("error");
+      throw new Error("Autosave failed");
+    }
+  };
+
+  const handleOpenChange = async (nextOpen) => {
+    if (!nextOpen && order?.id) {
+      try {
+        await flushAutosave();
+      } catch {
+        toast({ title: "Não foi possível salvar as últimas alterações", variant: "destructive" });
+        return;
+      }
+    }
+    onOpenChange(nextOpen);
+  };
 
   const filteredClients = useMemo(() => {
     if (!search) return clients || [];
@@ -89,16 +166,7 @@ export default function OrderFormDialog({ open, onOpenChange, order, clients, on
     }
     setSaving(true);
     try {
-      const data = {
-        ...form,
-        amount_received: parseFloat(form.amount_received) || 0,
-        amount_spent: parseFloat(form.amount_spent) || 0,
-        fee_amount: parseFloat(form.fee_amount) || 0,
-        profit,
-      };
-      if (data.status === "Entregue" && !data.delivered_date) {
-        data.delivered_date = moment().format("YYYY-MM-DD");
-      }
+      const data = buildOrderData(form);
 
       if (order?.id) {
         await db.entities.ServiceOrder.update(order.id, data);
@@ -118,10 +186,20 @@ export default function OrderFormDialog({ open, onOpenChange, order, clients, on
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{order?.id ? "Editar Ordem de Serviço" : "Nova Ordem de Serviço"}</DialogTitle>
+          <div className="flex items-center justify-between gap-4 pr-6">
+            <DialogTitle>{order?.id ? "Editar Ordem de Serviço" : "Nova Ordem de Serviço"}</DialogTitle>
+            {order?.id && (
+              <span className={`text-xs ${autosaveStatus === "error" ? "text-red-600" : "text-muted-foreground"}`}>
+                {autosaveStatus === "pending" && "Alterações pendentes…"}
+                {autosaveStatus === "saving" && "Salvando…"}
+                {autosaveStatus === "saved" && "Salvo automaticamente"}
+                {autosaveStatus === "error" && "Erro ao salvar"}
+              </span>
+            )}
+          </div>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Client Selection */}
@@ -222,7 +300,7 @@ export default function OrderFormDialog({ open, onOpenChange, order, clients, on
           </div>
 
           <div className="flex justify-end gap-3 pt-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>{order?.id ? "Fechar" : "Cancelar"}</Button>
             <Button type="submit" disabled={saving}>
               {saving ? "Salvando..." : order?.id ? "Atualizar" : "Criar OS"}
             </Button>
