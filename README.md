@@ -53,13 +53,13 @@ https://nodejs.org/
 Clone the repository:
 
 ```bash
-git clone https://github.com/gotepowo/assistencia-manager.git
+git clone https://github.com/gotepowo/gotelip-manager.git
 ```
 
 Enter the project folder:
 
 ```bash
-cd assistencia-manager
+cd gotelip-manager
 ```
 
 Install dependencies:
