@@ -16,7 +16,9 @@ import { Plus, Search, DollarSign, Pencil, Trash2, TrendingUp, TrendingDown, Arr
 import { useToast } from "@/components/ui/use-toast";
 import { exportToCSV } from "@/utils/exportCSV";
 import ImportCSVButton from "@/components/shared/ImportCSVButton";
-import moment from "moment";
+import moment from "moment/min/moment-with-locales";
+
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 export default function Finances() {
   const [searchParams] = useSearchParams();
@@ -100,13 +102,19 @@ export default function Finances() {
   };
 
   const monthOptions = useMemo(() => {
-    const opts = [];
-    for (let i = 0; i < 12; i++) {
-      const m = moment().subtract(i, "months");
-      opts.push({ value: m.format("YYYY-MM"), label: m.format("MMMM [de] YYYY") });
-    }
-    return opts;
-  }, []);
+  const opts = [];
+
+  for (let i = 0; i < 12; i++) {
+    const m = moment().locale("pt-br").subtract(i, "months");
+
+    opts.push({
+      value: m.format("YYYY-MM"),
+      label: capitalize(m.format("MMMM [de] YYYY")),
+    });
+  }
+
+  return opts;
+}, []);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>;

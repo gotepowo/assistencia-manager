@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from "recharts";
 import { Download, TrendingUp, TrendingDown, DollarSign, Users, Smartphone } from "lucide-react";
-import moment from "moment";
+import moment from "moment/min/moment-with-locales";
+
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 export default function Reports() {
   const [orders, setOrders] = useState([]);
@@ -135,10 +137,16 @@ export default function Reports() {
 
   const monthOptions = useMemo(() => {
     const opts = [];
+  
     for (let i = 0; i < 12; i++) {
-      const m = moment().subtract(i, "months");
-      opts.push({ value: m.format("YYYY-MM"), label: m.format("MMMM [de] YYYY") });
+      const m = moment().locale("pt-br").subtract(i, "months");
+  
+      opts.push({
+        value: m.format("YYYY-MM"),
+        label: capitalize(m.format("MMMM [de] YYYY")),
+      });
     }
+  
     return opts;
   }, []);
 
@@ -216,10 +224,10 @@ export default function Reports() {
               <Tooltip
                 formatter={(value, name) => [
                   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value),
-                  name === "lucro" ? "Lucro" : "Gastos",
+                  name,
                 ]}
               />
-              <Legend formatter={(value) => value === "lucro" ? "Lucro" : "Gastos"} />
+              <Legend />
               <Bar dataKey="lucro" name="Lucro" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="custos" name="Gastos" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} />
             </BarChart>

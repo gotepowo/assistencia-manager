@@ -9,9 +9,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, TrendingDown, DollarSign, Wrench, AlertTriangle, Clock, ShieldCheck, ShieldAlert, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
-import moment from "moment";
+import moment from "moment/min/moment-with-locales";
 
 const WARRANTY_DAYS = 90;
+
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
 
 export default function Dashboard() {
   const [orders, setOrders] = useState([]);
@@ -136,13 +138,19 @@ export default function Dashboard() {
   ];
 
   const monthOptions = useMemo(() => {
-    const opts = [];
-    for (let i = 0; i < 12; i++) {
-      const m = moment().subtract(i, "months");
-      opts.push({ value: m.format("YYYY-MM"), label: m.format("MMMM [de] YYYY") });
-    }
-    return opts;
-  }, []);
+  const opts = [];
+
+  for (let i = 0; i < 12; i++) {
+    const m = moment().locale("pt-br").subtract(i, "months");
+
+    opts.push({
+      value: m.format("YYYY-MM"),
+      label: capitalize(m.format("MMMM [de] YYYY")),
+    });
+  }
+
+  return opts;
+}, []);
 
   if (loading) {
     return (
@@ -232,12 +240,12 @@ export default function Dashboard() {
               <Tooltip
                 formatter={(value, name) => [
                   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value),
-                  name === "lucro" ? "Lucro" : "Gastos",
+                  name,
                 ]}
                 labelFormatter={(l) => `Dia ${l}`}
                 contentStyle={{ borderRadius: 8, border: "1px solid hsl(var(--border))" }}
               />
-              <Legend formatter={(value) => value === "lucro" ? "Lucro" : "Gastos"} />
+              <Legend />
               <Bar dataKey="lucro" name="Lucro" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="gastos" name="Gastos" fill="hsl(0, 72%, 51%)" radius={[4, 4, 0, 0]} />
             </BarChart>
