@@ -7,12 +7,12 @@
   "type": "module",
   "main": "electron/main.js",
   "scripts": {
-  "dev": "vite",
-  "electron": "electron .",
-  "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-  "build": "vite build",
-  "build:portable": "npm run build && electron-builder --win portable",
-  "build:unpacked": "npm run build && electron-builder --win dir"
+    "dev": "vite",
+    "electron": "electron .",
+    "dev:electron": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "vite build",
+    "build:portable": "npm run build && electron-builder --win portable",
+    "build:unpacked": "npm run build && electron-builder --win dir"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
@@ -107,12 +107,14 @@
     "productName": "Gotelip Assistência",
     "copyright": "Copyright © 2026 Gotelip Assistência",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
-      "package.json"
+      "package.json",
+      "build/icon.ico"
     ],
     "win": {
       "target": [
@@ -123,11 +125,11 @@
           ]
         }
       ],
-      "artifactName": "Gotelip-Assistencia-${version}-Portable.${ext}"
+      "artifactName": "Gotelip-Assistencia-${version}-Portable.${ext}",
+      "icon": "build/icon.ico"
     },
     "portable": {
       "artifactName": "Gotelip-Assistencia-${version}-Portable.${ext}"
     }
   }
 }
-
