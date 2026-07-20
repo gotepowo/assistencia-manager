@@ -65,6 +65,14 @@ contextBridge.exposeInMainWorld("electron", {
     import: () => ipcRenderer.invoke("backup:import"),
   },
 
+  sync: {
+    status: () => ipcRenderer.invoke("sync:status"),
+    chooseFolder: () => ipcRenderer.invoke("sync:choose-folder"),
+    useFolder: (folderPath) => ipcRenderer.invoke("sync:use-folder", folderPath),
+    disable: () => ipcRenderer.invoke("sync:disable"),
+    now: (options) => ipcRenderer.invoke("sync:now", options),
+  },
+
   files: {
     upload: (fileData) =>
       ipcRenderer.invoke(

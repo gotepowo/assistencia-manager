@@ -7,6 +7,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { registerIPC } from "./ipc.js";
+import { getSyncStatus, syncNow } from "./cloudSync.js";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -24,6 +25,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let mainWindow = null;
+let syncInterval = null;
 
 function getApplicationFolder() {
   if (!app.isPackaged) {
@@ -137,12 +139,45 @@ function createWindow() {
   }
 
   // mainWindow.webContents.openDevTools();
+
+  mainWindow.webContents.once("did-finish-load", () => {
+    setTimeout(() => {
+      try {
+        const status = getSyncStatus();
+        if (!status.enabled) return;
+        const result = syncNow();
+        if (result.reloadRequired && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.reload();
+        }
+      } catch (error) {
+        console.error("[sync] Falha na sincronização inicial:", error);
+      }
+    }, 1500);
+  });
 }
 
 app.whenReady().then(() => {
   registerLocalFileProtocol();
   registerIPC();
   createWindow();
+  syncInterval = setInterval(() => {
+    try {
+      const status = getSyncStatus();
+      if (status.enabled) syncNow();
+    } catch (error) {
+      console.error("[sync] Falha na sincronização automática:", error);
+    }
+  }, 5 * 60 * 1000);
+});
+
+app.on("before-quit", () => {
+  if (syncInterval) clearInterval(syncInterval);
+  try {
+    const status = getSyncStatus();
+    if (status.enabled && status.dirty) syncNow();
+  } catch (error) {
+    console.error("[sync] Falha na sincronização ao fechar:", error);
+  }
 });
 
 app.on("window-all-closed", () => {

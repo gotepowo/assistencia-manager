@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Store, Loader2, Upload, Download, DatabaseBackup, RotateCcw } from "lucide-react";
+import { Save, Store, Loader2, Upload, Download, DatabaseBackup, RotateCcw, Cloud, FolderOpen, RefreshCw, CloudOff, CheckCircle2, AlertTriangle } from "lucide-react";
 
 const formatCnpj = (value) => value.replace(/\D/g, "").slice(0, 14)
   .replace(/^(\d{2})(\d)/, "$1.$2")
@@ -34,6 +34,8 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [settingId, setSettingId] = useState(null);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const [form, setForm] = useState({
     store_name: "",
@@ -45,7 +47,18 @@ export default function Settings() {
     os_prefix: "OS",
   });
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    loadSyncStatus();
+  }, []);
+
+  const loadSyncStatus = async () => {
+    try {
+      setSyncStatus(await db.sync.status());
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -108,6 +121,71 @@ export default function Settings() {
     } catch {
       toast({ title: "O arquivo selecionado não é um backup válido", variant: "destructive" });
     }
+  };
+
+
+  const handleChooseSyncFolder = async () => {
+    try {
+      const result = await db.sync.chooseFolder();
+      if (!result.canceled) {
+        setSyncStatus(result.status);
+        toast({ title: "Pasta do OneDrive configurada!", description: result.status.syncFolder });
+      }
+    } catch (error) {
+      toast({ title: "Erro ao configurar OneDrive", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleUseDetectedFolder = async (folderPath) => {
+    try {
+      const status = await db.sync.useFolder(folderPath);
+      setSyncStatus(status);
+      toast({ title: "OneDrive configurado!", description: status.syncFolder });
+    } catch (error) {
+      toast({ title: "Erro ao configurar OneDrive", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleSyncNow = async (preferCloud = false) => {
+    setSyncing(true);
+    try {
+      const result = await db.sync.now({ preferCloud });
+      if (result.action === "cloud-empty") {
+        const shouldInitialize = window.confirm("Nenhum backup foi encontrado nessa pasta do OneDrive.\n\nSe este é o computador que já possui seus dados, clique em OK para enviar a primeira cópia.\n\nSe este é o segundo computador, clique em Cancelar e aguarde o OneDrive terminar de baixar os arquivos.");
+        if (shouldInitialize) {
+          const initialized = await db.sync.now({ initializeCloud: true });
+          setSyncStatus(initialized.status);
+          toast({ title: "Primeira cópia enviada para o OneDrive!" });
+        }
+        return;
+      }
+      setSyncStatus(result.status);
+      const messages = {
+        uploaded: "Dados enviados para o OneDrive!",
+        downloaded: "Dados baixados do OneDrive!",
+        none: "Tudo já estava sincronizado.",
+        disabled: "Configure a pasta do OneDrive primeiro.",
+        "cloud-empty": "Nenhum backup encontrado no OneDrive.",
+      };
+      toast({ title: messages[result.action] || "Sincronização concluída" });
+      if (result.reloadRequired) setTimeout(() => window.location.reload(), 500);
+    } catch (error) {
+      await loadSyncStatus();
+      const conflict = String(error.message).includes("CONFLICT");
+      if (conflict && window.confirm(`${error.message}\n\nDeseja DESCARTAR as alterações locais e baixar a versão do OneDrive? Um backup local será criado antes.`)) {
+        return handleSyncNow(true);
+      }
+      toast({ title: "Erro de sincronização", description: error.message, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleDisableSync = async () => {
+    if (!window.confirm("Desativar a sincronização neste computador? Os arquivos no OneDrive não serão apagados.")) return;
+    const status = await db.sync.disable();
+    setSyncStatus(status);
+    toast({ title: "Sincronização desativada neste computador." });
   };
 
   const handleSubmit = async (e) => {
@@ -216,6 +294,59 @@ export default function Settings() {
             <Button type="button" variant="outline" className="gap-2" onClick={handleImportBackup}><RotateCcw className="h-4 w-4" /> Carregar/restaurar backup</Button>
           </div>
           <p className="mt-3 text-xs text-muted-foreground">Ao restaurar, o banco atual é preservado automaticamente na pasta de backups antes da substituição.</p>
+        </div>
+
+        <div className="mt-6 rounded-xl border bg-card p-6">
+          <div className="flex items-center gap-2 border-b pb-3">
+            <Cloud className="h-5 w-5 text-primary" />
+            <div>
+              <h2 className="text-sm font-semibold">Sincronização pela pasta do OneDrive</h2>
+              <p className="text-xs text-muted-foreground">Mantém o banco e os arquivos iguais entre o PC de casa e o notebook da loja.</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-4 text-sm">
+              <div className="flex items-center gap-2 font-medium">
+                {!syncStatus?.enabled ? <CloudOff className="h-4 w-4 text-muted-foreground" /> : syncStatus?.lastError ? <AlertTriangle className="h-4 w-4 text-red-500" /> : syncStatus?.dirty ? <RefreshCw className="h-4 w-4 text-amber-500" /> : <CheckCircle2 className="h-4 w-4 text-green-600" />}
+                {!syncStatus?.enabled ? "Não configurado" : syncStatus?.lastError ? "Erro de sincronização" : syncStatus?.dirty ? "Alterações locais pendentes" : "Sincronizado"}
+              </div>
+              {syncStatus?.syncFolder && <p className="mt-2 break-all text-xs text-muted-foreground">Pasta: {syncStatus.syncFolder}</p>}
+              {syncStatus?.lastSyncAt && <p className="mt-1 text-xs text-muted-foreground">Última sincronização: {new Date(syncStatus.lastSyncAt).toLocaleString("pt-BR")}</p>}
+              {syncStatus?.baseRevision > 0 && <p className="mt-1 text-xs text-muted-foreground">Revisão local: {syncStatus.baseRevision} · Revisão no OneDrive: {syncStatus.cloudRevision ?? "—"}</p>}
+              {syncStatus?.lastError && <p className="mt-2 text-xs text-red-500">{syncStatus.lastError}</p>}
+            </div>
+
+            {!syncStatus?.enabled && syncStatus?.detectedFolders?.length > 0 && (
+              <div>
+                <p className="mb-2 text-xs font-medium">Pasta do OneDrive encontrada:</p>
+                <div className="space-y-2">
+                  {syncStatus.detectedFolders.map(folder => (
+                    <Button key={folder} type="button" variant="outline" className="w-full justify-start gap-2 overflow-hidden" onClick={() => handleUseDetectedFolder(folder)}>
+                      <FolderOpen className="h-4 w-4 shrink-0" /><span className="truncate">{folder}</span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-3">
+              {!syncStatus?.enabled ? (
+                <Button type="button" className="gap-2" onClick={handleChooseSyncFolder}><FolderOpen className="h-4 w-4" /> Selecionar pasta do OneDrive</Button>
+              ) : (
+                <>
+                  <Button type="button" className="gap-2" disabled={syncing} onClick={() => handleSyncNow(false)}>
+                    {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    {syncing ? "Sincronizando..." : "Sincronizar agora"}
+                  </Button>
+                  <Button type="button" variant="outline" className="gap-2" onClick={handleChooseSyncFolder}><FolderOpen className="h-4 w-4" /> Trocar pasta</Button>
+                  <Button type="button" variant="ghost" className="gap-2 text-red-500" onClick={handleDisableSync}><CloudOff className="h-4 w-4" /> Desativar</Button>
+                </>
+              )}
+            </div>
+
+            <p className="text-xs text-muted-foreground">O aplicativo sincroniza ao abrir, a cada 5 minutos e ao fechar. Antes de trocar de computador, clique em “Sincronizar agora” e espere o OneDrive concluir o envio.</p>
+          </div>
         </div>
       </div>
     </div>

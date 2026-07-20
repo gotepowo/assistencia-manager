@@ -105,6 +105,14 @@ export const db = {
     import() { return window.electron.backups.import(); },
   },
 
+  sync: {
+    status() { return window.electron.sync.status(); },
+    chooseFolder() { return window.electron.sync.chooseFolder(); },
+    useFolder(folderPath) { return window.electron.sync.useFolder(folderPath); },
+    disable() { return window.electron.sync.disable(); },
+    now(options = {}) { return window.electron.sync.now(options); },
+  },
+
   integrations: {
   Core: {
     async UploadFile({ file, category = "general" }) {

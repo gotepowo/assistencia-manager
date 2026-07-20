@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from "electron";
+import { ipcMain, dialog, BrowserWindow } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -17,6 +17,15 @@ import {
   getDatabasePathForBackup,
   validateAndRestoreBackup,
 } from "./database.js";
+
+import {
+  markLocalDirty,
+  getSyncStatus,
+  chooseOneDriveFolder,
+  configureDetectedFolder,
+  disableSync,
+  syncNow,
+} from "./cloudSync.js";
 
 const ALLOWED_ENTITIES = new Set([
   "Client",
@@ -52,25 +61,33 @@ export function registerIPC() {
 
   ipcMain.handle("db:create", (_event, entityName, data) => {
     validateEntity(entityName);
-    return createRecord(entityName, data);
+    const result = createRecord(entityName, data);
+    markLocalDirty();
+    return result;
   });
 
   ipcMain.handle(
     "db:update",
     (_event, entityName, id, changes) => {
       validateEntity(entityName);
-      return updateRecord(entityName, id, changes);
+      const result = updateRecord(entityName, id, changes);
+      markLocalDirty();
+      return result;
     },
   );
 
   ipcMain.handle("db:delete", (_event, entityName, id) => {
     validateEntity(entityName);
-    return deleteRecord(entityName, id);
+    const result = deleteRecord(entityName, id);
+    if (result) markLocalDirty();
+    return result;
   });
 
   ipcMain.handle("db:restore", (_event, entityName, record) => {
     validateEntity(entityName);
-    return restoreRecord(entityName, record);
+    const result = restoreRecord(entityName, record);
+    markLocalDirty();
+    return result;
   });
 
   ipcMain.handle("os:next-number", (_event, prefix) => getNextServiceOrderNumber(prefix));
@@ -96,6 +113,7 @@ export function registerIPC() {
     });
     if (result.canceled || !result.filePaths[0]) return { canceled: true };
     validateAndRestoreBackup(result.filePaths[0]);
+    markLocalDirty();
     return { canceled: false, path: result.filePaths[0] };
   });
 
@@ -103,7 +121,9 @@ export function registerIPC() {
     "db:bulk-create",
     (_event, entityName, records) => {
       validateEntity(entityName);
-      return bulkCreateRecords(entityName, records);
+      const result = bulkCreateRecords(entityName, records);
+      markLocalDirty();
+      return result;
     },
   );
 
@@ -112,7 +132,16 @@ export function registerIPC() {
     return filterRecords(entityName, filters);
   });
 
+
+  ipcMain.handle("sync:status", () => getSyncStatus());
+  ipcMain.handle("sync:choose-folder", (event) => chooseOneDriveFolder(BrowserWindow.fromWebContents(event.sender)));
+  ipcMain.handle("sync:use-folder", (_event, folderPath) => configureDetectedFolder(folderPath));
+  ipcMain.handle("sync:disable", () => disableSync());
+  ipcMain.handle("sync:now", (_event, options = {}) => syncNow(options));
+
   ipcMain.handle("file:upload", (_event, fileData) => {
-  return saveUploadedFile(fileData);
+  const result = saveUploadedFile(fileData);
+  markLocalDirty();
+  return result;
   });
 }
