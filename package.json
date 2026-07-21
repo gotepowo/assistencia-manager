@@ -125,11 +125,11 @@
           ]
         }
       ],
-      "artifactName": "Gotelip-Assistencia-${version}-Portable.${ext}",
+      "artifactName": "Gotelip Manager Portable.${ext}",
       "icon": "build/icon.ico"
     },
     "portable": {
-      "artifactName": "Gotelip-Assistencia-${version}-Portable.${ext}"
+      "artifactName": "Gotelip Manager Portable.${ext}"
     }
   }
 }
