@@ -1,5 +1,13 @@
 # Sincronização pela pasta do OneDrive
 
+
+## Compatibilidade com versões antigas
+
+A marca do aplicativo mudou para **Gotelip Manager**, mas versões anteriores criavam a pasta `Gotelip Assistencia Sync`.
+O aplicativo reconhece automaticamente tanto essa pasta antiga quanto `Gotelip Manager Sync` e continua usando o histórico correto de revisões.
+
+**Não renomeie nem mova manualmente a pasta de sincronização.** O nome visual do programa não precisa ser igual ao nome da pasta que já contém os backups.
+
 Esta versão não usa Azure, Microsoft Graph, Client ID nem registro de aplicativo. O programa grava snapshots dentro da pasta local do OneDrive, e o cliente oficial do OneDrive faz o envio para a nuvem.
 
 ## Preparação nos dois computadores
@@ -7,22 +15,22 @@ Esta versão não usa Azure, Microsoft Graph, Client ID nem registro de aplicati
 1. Instale o OneDrive do Windows e entre com a mesma conta Microsoft nos dois computadores.
 2. Confirme que a pasta do OneDrive aparece no Explorador de Arquivos.
 3. No OneDrive, deixe a opção de inicialização automática ativada.
-4. Use a mesma versão do Gotelip Assistência nos dois computadores.
+4. Use a mesma versão do Gotelip Manager nos dois computadores.
 
 ## Primeiro computador (o que já possui seus dados)
 
-1. Abra o Gotelip Assistência.
+1. Abra o Gotelip Manager.
 2. Vá em **Configurações**.
 3. Na seção **Sincronização pela pasta do OneDrive**, escolha a pasta detectada ou clique em **Selecionar pasta do OneDrive**.
 4. Selecione a pasta principal do OneDrive, por exemplo `C:\\Users\\Thiago\\OneDrive`. Não selecione uma pasta dentro dela.
 5. Clique em **Sincronizar agora**.
-6. O programa criará `Gotelip Assistencia Sync` dentro do OneDrive e enviará a primeira revisão.
+6. Em uma configuração nova, o programa criará `Gotelip Manager Sync`. Se já existir `Gotelip Assistencia Sync`, ele continuará usando essa pasta para preservar o histórico.
 7. Espere o ícone do OneDrive indicar que a sincronização terminou antes de desligar ou usar o outro computador.
 
 ## Segundo computador
 
-1. Confirme que o OneDrive já terminou de baixar a pasta `Gotelip Assistencia Sync`.
-2. Abra o Gotelip Assistência e configure a mesma pasta principal do OneDrive.
+1. Confirme que o OneDrive já terminou de baixar a pasta de sincronização existente (`Gotelip Manager Sync` ou `Gotelip Assistencia Sync`).
+2. Abra o Gotelip Manager e configure a mesma pasta principal do OneDrive.
 3. Clique em **Sincronizar agora**.
 4. A versão mais recente será baixada. O aplicativo recarregará automaticamente.
 
