@@ -6,6 +6,10 @@
 # Dependencies
 node_modules/
 
+# Dev Tools
+dev.bat
+build.bat
+
 # Build output
 dist/
 dist-ssr/

@@ -1,6 +1,6 @@
 import db from "@/api/databaseClient";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/components/ui/use-toast";
 import moment from "moment";
 
-export default function TransactionFormDialog({ open, onOpenChange, transaction, onSaved }) {
+const NO_CLIENT = "__none__";
+const LEGACY_CLIENT = "__legacy__";
+
+function normalizeName(value) {
+  return String(value || "").trim().toLocaleLowerCase("pt-BR");
+}
+
+export default function TransactionFormDialog({
+  open,
+  onOpenChange,
+  transaction,
+  clients = [],
+  onSaved,
+}) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -20,23 +33,71 @@ export default function TransactionFormDialog({ open, onOpenChange, transaction,
     category: "Serviço",
     amount: 0,
     description: "",
+    client_id: NO_CLIENT,
     client_name: "",
   });
 
+  const sortedClients = useMemo(
+    () => [...clients].sort((a, b) => String(a.full_name || "").localeCompare(String(b.full_name || ""), "pt-BR")),
+    [clients],
+  );
+
   useEffect(() => {
     if (transaction) {
+      const linkedClient = transaction.client_id
+        ? clients.find((client) => client.id === transaction.client_id)
+        : clients.find(
+          (client) => normalizeName(client.full_name) === normalizeName(transaction.client_name),
+        );
+
+      const legacyClientName = transaction.client_name || "";
+      const clientSelection = linkedClient?.id
+        || (legacyClientName ? LEGACY_CLIENT : NO_CLIENT);
+
       setForm({
         date: transaction.date || moment().format("YYYY-MM-DD"),
         type: transaction.type || "Entrada",
         category: transaction.category || "Serviço",
         amount: transaction.amount || 0,
         description: transaction.description || "",
-        client_name: transaction.client_name || "",
+        client_id: clientSelection,
+        client_name: linkedClient?.full_name || legacyClientName,
       });
     } else {
-      setForm({ date: moment().format("YYYY-MM-DD"), type: "Entrada", category: "Serviço", amount: 0, description: "", client_name: "" });
+      setForm({
+        date: moment().format("YYYY-MM-DD"),
+        type: "Entrada",
+        category: "Serviço",
+        amount: 0,
+        description: "",
+        client_id: NO_CLIENT,
+        client_name: "",
+      });
     }
-  }, [transaction, open]);
+  }, [transaction, open, clients]);
+
+  const handleClientChange = (clientId) => {
+    if (clientId === NO_CLIENT) {
+      setForm((current) => ({
+        ...current,
+        client_id: NO_CLIENT,
+        client_name: "",
+      }));
+      return;
+    }
+
+    if (clientId === LEGACY_CLIENT) {
+      setForm((current) => ({ ...current, client_id: LEGACY_CLIENT }));
+      return;
+    }
+
+    const selectedClient = clients.find((client) => client.id === clientId);
+    setForm((current) => ({
+      ...current,
+      client_id: clientId,
+      client_name: selectedClient?.full_name || "",
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,9 +105,18 @@ export default function TransactionFormDialog({ open, onOpenChange, transaction,
       toast({ title: "Informe um valor válido", variant: "destructive" });
       return;
     }
+
     setSaving(true);
     try {
-      const data = { ...form, amount: parseFloat(form.amount) };
+      const selectedClient = clients.find((client) => client.id === form.client_id);
+      const data = {
+        ...form,
+        amount: parseFloat(form.amount),
+        client_id: selectedClient?.id || "",
+        client_name: selectedClient?.full_name
+          || (form.client_id === LEGACY_CLIENT ? form.client_name : ""),
+      };
+
       if (transaction?.id) {
         await db.entities.Transaction.update(transaction.id, data);
         toast({ title: "Transação atualizada!" });
@@ -62,6 +132,8 @@ export default function TransactionFormDialog({ open, onOpenChange, transaction,
       setSaving(false);
     }
   };
+
+  const hasLegacyClient = form.client_id === LEGACY_CLIENT && form.client_name;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -106,7 +178,27 @@ export default function TransactionFormDialog({ open, onOpenChange, transaction,
           </div>
           <div>
             <Label>Cliente (opcional)</Label>
-            <Input value={form.client_name} onChange={e => setForm({ ...form, client_name: e.target.value })} placeholder="Nome do cliente" />
+            <Select value={form.client_id || NO_CLIENT} onValueChange={handleClientChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sem cliente vinculado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_CLIENT}>Sem cliente vinculado</SelectItem>
+                {hasLegacyClient && (
+                  <SelectItem value={LEGACY_CLIENT}>
+                    {form.client_name} (não vinculado)
+                  </SelectItem>
+                )}
+                {sortedClients.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ao editar uma transação existente, selecione um cliente cadastrado para vinculá-la.
+            </p>
           </div>
           <div>
             <Label>Descrição</Label>

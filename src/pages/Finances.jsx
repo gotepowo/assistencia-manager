@@ -24,6 +24,7 @@ export default function Finances() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [transactions, setTransactions] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("Todos");
@@ -42,10 +43,25 @@ export default function Finances() {
 
   const loadData = async () => {
     setLoading(true);
-    const t = await db.entities.Transaction.list("-date", 500);
+    const [t, c] = await Promise.all([
+      db.entities.Transaction.list("-date", 500),
+      db.entities.Client.list("full_name", 500),
+    ]);
     setTransactions(t);
+    setClients(c);
     setLoading(false);
   };
+
+  const clientNameById = useMemo(
+    () => new Map(clients.map((client) => [client.id, client.full_name])),
+    [clients],
+  );
+
+  const getTransactionClientName = (transaction) => (
+    clientNameById.get(transaction.client_id)
+    || transaction.client_name
+    || ""
+  );
 
   const filtered = useMemo(() => {
     const [y, m] = selectedMonth.split("-");
@@ -53,10 +69,13 @@ export default function Finances() {
       const matchMonth = t.date && moment(t.date).year() === parseInt(y) && moment(t.date).month() === parseInt(m) - 1;
       const matchType = typeFilter === "Todos" || t.type === typeFilter;
       const matchCategory = categoryFilter === "Todos" || t.category === categoryFilter;
-      const matchSearch = !search || (t.description || "").toLowerCase().includes(search.toLowerCase()) || (t.client_name || "").toLowerCase().includes(search.toLowerCase());
+      const clientName = getTransactionClientName(t);
+      const matchSearch = !search
+        || (t.description || "").toLowerCase().includes(search.toLowerCase())
+        || clientName.toLowerCase().includes(search.toLowerCase());
       return matchMonth && matchType && matchCategory && matchSearch;
     });
-  }, [transactions, selectedMonth, typeFilter, categoryFilter, search]);
+  }, [transactions, selectedMonth, typeFilter, categoryFilter, search, clientNameById]);
 
   const summary = useMemo(() => {
     const entries = filtered.filter(t => t.type === "Entrada").reduce((s, t) => s + (t.amount || 0), 0);
@@ -76,7 +95,11 @@ export default function Finances() {
       toast({ title: "Nenhuma transação para exportar", variant: "destructive" });
       return;
     }
-    exportToCSV(filtered, [
+    const exportRows = filtered.map((transaction) => ({
+      ...transaction,
+      client_name: getTransactionClientName(transaction),
+    }));
+    exportToCSV(exportRows, [
       { key: "date", label: "Data", format: v => v ? moment(v).format("DD/MM/YYYY") : "" },
       { key: "type", label: "Tipo" },
       { key: "category", label: "Categoria" },
@@ -97,7 +120,21 @@ export default function Finances() {
   ];
 
   const handleImport = async (records) => {
-    await db.entities.Transaction.bulkCreate(records);
+    const normalizedClients = new Map(
+      clients.map((client) => [
+        String(client.full_name || "").trim().toLocaleLowerCase("pt-BR"),
+        client,
+      ]),
+    );
+    const linkedRecords = records.map((record) => {
+      const matchedClient = normalizedClients.get(
+        String(record.client_name || "").trim().toLocaleLowerCase("pt-BR"),
+      );
+      return matchedClient
+        ? { ...record, client_id: matchedClient.id, client_name: matchedClient.full_name }
+        : record;
+    });
+    await db.entities.Transaction.bulkCreate(linkedRecords);
     await loadData();
   };
 
@@ -223,7 +260,7 @@ export default function Finances() {
                   </td>
                   <td className="px-4 py-3 text-sm text-muted-foreground">{t.category}</td>
                   <td className="px-4 py-3 text-sm">{t.description || "—"}</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">{t.client_name || "—"}</td>
+                  <td className="px-4 py-3 text-sm text-muted-foreground">{getTransactionClientName(t) || "—"}</td>
                   <td className="px-4 py-3 text-sm text-right font-medium">
                     <span className={t.type === "Entrada" ? "text-emerald-600" : "text-red-600"}>
                       {t.type === "Saída" ? "-" : ""}<CurrencyDisplay value={t.amount} />
@@ -246,7 +283,7 @@ export default function Finances() {
         </div>
       )}
 
-      <TransactionFormDialog open={formOpen} onOpenChange={setFormOpen} transaction={editTransaction} onSaved={loadData} />
+      <TransactionFormDialog open={formOpen} onOpenChange={setFormOpen} transaction={editTransaction} clients={clients} onSaved={loadData} />
       <ConfirmDialog open={deleteOpen} onOpenChange={setDeleteOpen} title="Excluir Transação" description="Tem certeza que deseja excluir esta transação?" onConfirm={handleDelete} confirmText="Excluir" destructive />
     </div>
   );
